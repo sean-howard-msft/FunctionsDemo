@@ -1,0 +1,260 @@
+# ASP.NET Core (.NET Framework)
+# Build and test ASP.NET Core projects targeting the full .NET Framework.
+# Add steps that publish symbols, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- master
+
+pool:
+  name: Hosted Windows 2019 with VS2019
+  demands:
+  - msbuild
+  - visualstudio
+  - vstest
+  - npm
+
+variables:
+- group: Demo-Dev
+- group: Demo-Dev-KV
+- name: 'solution'
+  value: '**/*.sln'
+- name: 'buildPlatform'
+  value: 'Any CPU'
+- name: 'buildConfiguration'
+  value: 'Release'
+- name: 'tempStorageName'
+  value: 'tempstorage1j92ysi9'
+- name: 'tempStorageUri'
+  value: ''
+- name: 'tempStorageSasToken'
+  value: ''
+
+stages:
+- stage: build_main
+  displayName: 'Build'
+  jobs:
+    - job: buildJob
+      steps:
+      - task: NuGetToolInstaller@1
+
+      - task: NuGetCommand@2
+        inputs:
+          restoreSolution: '$(solution)'
+
+      - task: VSBuild@1
+        inputs:
+          solution: '**/*.deployproj'
+          msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
+          platform: '$(buildPlatform)'
+          configuration: '$(buildConfiguration)'
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: build
+          projects: |
+            WebJob/Demo.WebJob.csproj 
+            FunctionApp/Demo.FunctionApp.csproj 
+
+      - task: DotNetCoreCLI@2
+        name: PublishWebJob
+        displayName: 'Publish Web Job'
+        inputs:
+          command: publish
+          projects: |
+            WebJob/Demo.WebJob.csproj 
+          publishWebProjects: false
+          arguments: '--output $(Build.BinariesDirectory)/publish_output_webapp/app_data/Jobs/continuous/Demo.WebJob'
+          zipAfterPublish: false
+          modifyOutputPath: false
+
+      - task: DotNetCoreCLI@2
+        name: PublishFunctionApp
+        displayName: 'Publish Function App'
+        inputs:
+          command: publish
+          projects: |
+            FunctionApp/Demo.FunctionApp.csproj 
+          publishWebProjects: false
+          arguments: '--output $(Build.BinariesDirectory)/publish_output_functionapp'
+          zipAfterPublish: false
+          modifyOutputPath: false
+
+      - task: ArchiveFiles@2
+        name: ArchiveWebApp
+        displayName: 'Archive Web App'
+        inputs: 
+          rootFolderOrFile: '$(Build.BinariesDirectory)/publish_output_webapp'
+          includeRootFolder: false
+          archiveType: zip
+          archiveFile: '$(Build.ArtifactStagingDirectory)/WebApp'
+          replaceExistingArchive: true
+
+      - task: ArchiveFiles@2
+        name: ArchiveFunctionApp
+        displayName: 'Archive Function App'
+        inputs: 
+          rootFolderOrFile: '$(Build.BinariesDirectory)/publish_output_functionapp'
+          includeRootFolder: false
+          archiveType: zip
+          archiveFile: '$(Build.ArtifactStagingDirectory)/FunctionApp'
+          replaceExistingArchive: true
+
+      - task: AzurePowerShell@5
+        displayName: 'Create Temp Storage'
+        inputs:
+          azureSubscription: '$(azureResourceManagerConnection)'
+          ScriptType: 'InlineScript'
+          Inline: |
+            $StorageAccount = (Get-AzStorageAccount | Where-Object{$_.StorageAccountName -eq '$(tempStorageName)'})
+            if ($StorageAccount -eq $null) {
+              $StorageAccount = New-AzStorageAccount -StorageAccountName $(tempStorageName) -Type 'Standard_LRS' -ResourceGroupName $(resourceGroupName) -Location '$(location)'
+            }
+            New-AzStorageContainer -Name deploy -Context $StorageAccount.Context -ErrorAction SilentlyContinue *>&1
+          azurePowerShellVersion: 'LatestVersion'
+
+      - task: AzureFileCopy@3
+        displayName: 'Copy Files to Temp Storage'
+        inputs:
+          SourcePath: '$(Build.ArtifactStagingDirectory)\Demo.ResourceGroup'
+          azureSubscription: '$(azureResourceManagerConnection)'
+          Destination: 'AzureBlob'
+          storage: '$(tempStorageName)'
+          ContainerName: 'deploy'
+          outputStorageUri: 'tempStorageUri'
+          outputStorageContainerSasToken: 'tempStorageSasToken'
+
+      - task: AzureResourceManagerTemplateDeployment@3
+        displayName: 'Deploy ARM Templates'
+        inputs:
+          deploymentScope: 'Resource Group'
+          azureResourceManagerConnection: '$(azureResourceManagerConnection)'
+          subscriptionId: '$(subscriptionId)'
+          action: 'Create Or Update Resource Group'
+          resourceGroupName: '$(resourceGroupName)'
+          location: '$(location)'
+          templateLocation: 'URL of the file'
+          csmFileLink: '$(tempStorageUri)azuredeploy.json$(tempStorageSasToken)'
+          overrideParameters: '
+          -AppName $(AppName) 
+          -UserObjectId $(UserObjectId) 
+          -TwilioSID $(TwilioSID) 
+          -TwilioToken $(TwilioToken) 
+          -TwilioPhone $(TwilioPhone) 
+          -SQLAdminUser $(SQLAdminUser) 
+          -SQLAdminPassword $(SQLAdminPassword) 
+          -my_IP_address $(my_IP_address) 
+          -_artifactsLocation $(tempStorageUri) 
+          -_artifactsLocationSasToken $(tempStorageSasToken)'
+          deploymentMode: 'Incremental'
+          deploymentOutputs: 'ArmOutputs'
+
+      - task: PowerShell@2
+        name: GetARMTemplateVars
+        displayName: 'Get ARM Template Output'
+        inputs:
+          targetType: 'inline'
+          script: |
+            function Convert-ArmOutputToPsObject {
+                        param (
+                          [Parameter(Mandatory=$true)]
+                          [string]
+                          $ArmOutputString
+                        )
+            
+                        if ($PSBoundParameters['Verbose']) {
+                          Write-Host "Arm output json is:"
+                          Write-Host $ArmOutputString
+                        }
+            
+                        $armOutputObj = $ArmOutputString | ConvertFrom-Json
+            
+                        $armOutputObj.PSObject.Properties | ForEach-Object {
+                            $type = ($_.value.type)
+                            $keyname = "$($_.name)"
+                            $value = $_.value.value
+            
+                            if ($type -eq "securestring") {
+                                Write-Host "##vso[task.setvariable variable=$keyname;issecret=true;isOutput=true]$value"
+                                Write-Host "Added Azure DevOps secret variable '$keyname' ('$type')"
+                            } elseif ($type -eq "string") {
+                                Write-Host "##vso[task.setvariable variable=$keyname;isOutput=true]$value"
+                                Write-Host "Added Azure DevOps variable '$keyname' ('$type') with value '$value'"
+                            } else {
+                                Throw "Type '$type' is not supported for '$keyname'"
+                            }
+                        }
+                      }
+            
+                      Convert-ArmOutputToPsObject -ArmOutputString '$(ArmOutputs)'
+
+# Add service connection access policy back in
+      - task: AzurePowerShell@5
+        displayName: 'Add Service Connection Access Policy'
+        inputs:
+          azureSubscription: '$(azureResourceManagerConnection)'
+          ScriptType: 'InlineScript'
+          Inline: 'Set-AzKeyVaultAccessPolicy -VaultName $(GetARMTemplateVars.vaultUri) -PermissionsToSecrets get,list -ObjectId $(ServiceConnectionId)'
+          azurePowerShellVersion: 'LatestVersion'
+
+      - task: AzurePowerShell@5
+        displayName: 'Remove Temp Storage'
+        inputs:
+          azureSubscription: '$(azureResourceManagerConnection)'
+          ScriptType: 'InlineScript'
+          Inline: |
+            Remove-AzStorageAccount -ResourceGroupName $(resourceGroupName) -StorageAccountName $(tempStorageName) -Force
+          azurePowerShellVersion: 'LatestVersion'
+
+      - task: PublishPipelineArtifact@1
+        inputs:
+          targetPath: '$(Pipeline.Workspace)'
+          publishLocation: 'pipeline'
+
+- stage: release_main
+  dependsOn: build_main
+  displayName: 'Release'
+  jobs:
+  - job: releaseJob
+    variables:
+    - group: Demo-Dev
+    - group: Demo-Dev-KV
+    - name: WebJob_name
+      value: $[ stageDependencies.build_main.buildJob.outputs['GetARMTemplateVars.webJob_name'] ]
+    - name: Functionapp_name
+      value: $[ stageDependencies.build_main.buildJob.outputs['GetARMTemplateVars.functionapp_name'] ]
+    - name: VaultUri
+      value: $[ stageDependencies.build_main.buildJob.outputs['GetARMTemplateVars.vaultUri'] ]
+    - name: APPINSIGHTS_INSTRUMENTATIONKEY
+      value: $[ stageDependencies.build_main.buildJob.outputs['GetARMTemplateVars.APPINSIGHTS_INSTRUMENTATIONKEY'] ]
+      # Key Vault Connection Strings use -- for :, but we need .
+    - name: ConnectionStrings.AzureWebJobsStorage
+      value: $(ConnectionStrings--AzureWebJobsStorage)
+    - name: ConnectionStrings.ServiceBusConnection
+      value: $(ConnectionStrings--ServiceBusConnection)
+    - name: ConnectionStrings.SQLDBConnString
+      value: $(ConnectionStrings--SQLDBConnString)
+
+    steps:
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        buildType: 'current'
+        targetPath: '$(Pipeline.Workspace)'
+
+    - task: AzureRmWebAppDeployment@3
+      displayName: 'Azure App Service Deploy'
+      inputs:
+        azureSubscription: '$(azureResourceManagerConnection)'
+        WebAppName: '$(WebJob_name)'
+        appType: app
+        JSONFiles: '**/appsettings.json'
+        Package: '$(Pipeline.Workspace)/**/WebApp.zip'
+
+    - task: AzureFunctionApp@1
+      inputs:
+        azureSubscription: '$(azureResourceManagerConnection)'
+        appType: 'functionApp'
+        appName: '$(Functionapp_name)'
+        package: '$(Pipeline.Workspace)/**/FunctionApp.zip'
+        deploymentMethod: 'auto'

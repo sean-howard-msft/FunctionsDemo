@@ -1,0 +1,151 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "AppName": {
+      "type": "string"
+    },
+    "sqlserverAdminLogin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sqlserverAdminLoginPassword": {
+      "type": "securestring"
+    },
+    "my_IP_address": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "NotifyName": {
+      "type": "string",
+      "defaultValue": "Notify",
+      "minLength": 1
+    },
+    "NotifyCollation": {
+      "type": "string",
+      "minLength": 1,
+      "defaultValue": "SQL_Latin1_General_CP1_CI_AS"
+    },
+    "NotifyEdition": {
+      "type": "string",
+      "defaultValue": "Basic",
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ]
+    },
+    "NotifyRequestedServiceObjectiveName": {
+      "type": "string",
+      "defaultValue": "Basic",
+      "allowedValues": [
+        "Basic",
+        "S0",
+        "S1",
+        "S2",
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "metadata": {
+        "description": "Describes the performance level for Edition"
+      }
+    },
+    "sampleName": {
+      "type": "string",
+      "defaultValue": "AdventureWorksLT"
+    }
+  },
+  "variables": {
+    "sqlserverName": "[toLower(concat('sql-', parameters('AppName'), '-', 'dev'))]"
+  },
+  "resources": [
+    {
+      "name": "[variables('sqlserverName')]",
+      "type": "Microsoft.Sql/servers",
+      "location": "[parameters('location')]",
+      "apiVersion": "2015-05-01-preview",
+      "tags": {
+        "displayName": "sqlserver"
+      },
+      "properties": {
+        "administratorLogin": "[parameters('sqlserverAdminLogin')]",
+        "administratorLoginPassword": "[parameters('sqlserverAdminLoginPassword')]"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Sql/servers/firewallRules",
+          "apiVersion": "2015-05-01-preview",
+          "name": "[concat(variables('sqlserverName'), '/AllowAllWindowsAzureIps')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', variables('sqlserverName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          },
+          "tags": {
+            "displayName": "SQL Server Firewall Rules: Allow All Windows Azure IPs"
+          }
+        },
+        {
+          "type": "Microsoft.Sql/servers/firewallRules",
+          "apiVersion": "2015-05-01-preview",
+          "name": "[concat(variables('sqlserverName'), '/ClientIPAddress_1')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', variables('sqlserverName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "[parameters('my_IP_address')]",
+            "endIpAddress": "[parameters('my_IP_address')]"
+          },
+          "tags": {
+            "displayName": "SQL Server Firewall Rules: Allow First Client IP"
+          }
+        },
+        {
+          "type": "Microsoft.Sql/servers/firewallRules",
+          "apiVersion": "2015-05-01-preview",
+          "name": "[concat(variables('sqlserverName'), '/development')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', variables('sqlserverName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "255.255.255.255"
+          },
+          "tags": {
+            "displayName": "SQL Server Firewall Rules: development"
+          }
+        },
+        {
+          "name": "[parameters('NotifyName')]",
+          "type": "databases",
+          "location": "[parameters('location')]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[resourceId('Microsoft.Sql/servers', variables('sqlserverName'))]"
+          ],
+          "tags": {
+            "displayName": "Notify"
+          },
+          "properties": {
+            "collation": "[parameters('NotifyCollation')]",
+            "edition": "[parameters('NotifyEdition')]",
+            "maxSizeBytes": "1073741824",
+            "sampleName": "[parameters('sampleName')]",
+            "requestedServiceObjectiveName": "[parameters('NotifyRequestedServiceObjectiveName')]"
+          }
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "sqlFQDN": {
+      "type": "string",
+      "value": "[reference(variables('sqlServerName')).fullyQualifiedDomainName]"
+    }
+  }
+}

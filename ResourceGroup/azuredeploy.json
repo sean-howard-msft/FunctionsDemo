@@ -1,0 +1,1551 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "AppName": {
+      "type": "String",
+      "metadata": {
+        "description": "8 chars or less please."
+      }
+    },
+    "UserObjectId": {
+      "type": "string"
+    },
+    "Environment": {
+      "type": "String",
+      "defaultValue": "Dev"
+    },
+    "SQLAdminUser": {
+      "type": "string"
+    },
+    "SQLAdminPassword": {
+      "type": "securestring"
+    },
+    "my_IP_address": {
+      "type": "string"
+    },
+    "TwilioSID": {
+      "type": "securestring"
+    },
+    "TwilioToken": {
+      "type": "securestring"
+    },
+    "TwilioPhone": {
+      "type": "securestring"
+    },
+    "_artifactsLocation": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "_artifactsLocationSasToken": {
+      "type": "securestring",
+      "defaultValue": ""
+    }
+  },
+  "variables": {
+    "prefixes": {
+      "ManagementGroup": "mg-",
+      "ResourceGroup": "rg-",
+      "PolicyDefinition": "policy-",
+      "ApiManagementServiceInstance": "apim-",
+      "ManagedIdentity": "id-",
+      "VirtualNetwork": "vnet-",
+      "Subnet": "snet-",
+      "VirtualNetworkPeering": "peer-",
+      "NetworkInterfaceNic": "nic-",
+      "PublicIpAddress": "pip-",
+      "LoadBalancerInternal": "lbi-",
+      "LoadBalancerExternal": "lbe-",
+      "NetworkSecurityGroupNsg": "nsg-",
+      "ApplicationSecurityGroupAsg": "asg-",
+      "LocalNetworkGateway": "lgw-",
+      "VirtualNetworkGateway": "vgw-",
+      "VpnConnection": "cn-",
+      "ExpressrouteCircuit": "erc-",
+      "ApplicationGateway": "agw-",
+      "RouteTable": "route-",
+      "UserDefinedRouteUdr": "udr-",
+      "TrafficManagerProfile": "traf-",
+      "FrontDoor": "fd-",
+      "CdnProfile": "cdnp-",
+      "CdnEndpoint": "cdne-",
+      "WebApplicationFirewallWafPolicy": "waf",
+      "VirtualMachine": "vm",
+      "VirtualMachineScaleSet": "vmss-",
+      "AvailabilitySet": "avail-",
+      "ManagedDiskOs": "osdisk",
+      "ManagedDiskData": "disk",
+      "VmStorageAccount": "stvm",
+      "AzureArcEnabledServer": "arcs-",
+      "AzureArcEnabledKubernetesCluster": "arck",
+      "ContainerRegistry": "cr",
+      "ContainerInstance": "ci-",
+      "AksCluster": "aks-",
+      "ServiceFabricCluster": "sf-",
+      "AppServiceEnvironment": "ase-",
+      "AppServicePlan": "plan-",
+      "WebApp": "app-",
+      "FunctionApp": "func-",
+      "CloudService": "cld-",
+      "NotificationHubs": "ntf-",
+      "NotificationHubsNamespace": "ntfns-",
+      "AzureSqlDatabaseServer": "sql-",
+      "AzureSqlDatabase": "sqldb-",
+      "AzureCosmosDbDatabase": "cosmos-",
+      "AzureCacheForRedisInstance": "redis-",
+      "MysqlDatabase": "mysql-",
+      "PostgresqlDatabase": "psql-",
+      "AzureSqlDataWarehouse": "sqldw-",
+      "AzureSynapseAnalytics": "syn-",
+      "SqlServerStretchDatabase": "sqlstrdb-",
+      "SqlManagedInstance": "sqlmi-",
+      "StorageAccount": "st",
+      "AzureStorsimple": "ssimp",
+      "AzureContainerRegistry": "acr",
+      "AzureCognitiveSearch": "srch-",
+      "AzureCognitiveServices": "cog-",
+      "AzureMachineLearningWorkspace": "mlw-",
+      "AzureAnalysisServicesServer": "as",
+      "AzureDatabricksWorkspace": "dbw-",
+      "AzureStreamAnalytics": "asa-",
+      "AzureDataExplorerCluster": "dec",
+      "AzureDataFactory": "adf-",
+      "DataLakeStoreAccount": "dls",
+      "DataLakeAnalyticsAccount": "dla",
+      "EventHub": "evh-",
+      "Hdinsight-HadoopCluster": "hadoop-",
+      "Hdinsight-HbaseCluster": "hbase-",
+      "Hdinsight-KafkaCluster": "kafka-",
+      "Hdinsight-SparkCluster": "spark-",
+      "Hdinsight-StormCluster": "storm-",
+      "Hdinsight-MlServicesCluster": "mls-",
+      "IotHub": "iot-",
+      "PowerBiEmbedded": "pbi-",
+      "TimeSeriesInsightsEnvironment": "tsi-",
+      "AppConfigurationStore": "appcs-",
+      "IntegrationAccount": "ia-",
+      "LogicApps": "logic-",
+      "ServiceBus": "sb-",
+      "ServiceBusQueue": "sbq-",
+      "ServiceBusTopic": "sbt-",
+      "AutomationAccount": "aa-",
+      "AzureMonitorActionGroup": "ag-",
+      "AzurePurviewInstance": "pview-",
+      "Blueprint": "bp-",
+      "BlueprintAssignment": "bpa-",
+      "KeyVault": "kv-",
+      "LogAnalyticsWorkspace": "log-",
+      "ApplicationInsights": "appi-",
+      "AzureMigrateProject": "migr-",
+      "DatabaseMigrationServiceInstance": "dms-",
+      "RecoveryServicesVault": "rsv-"
+    },
+    "location": "[resourceGroup().location]",
+    "functionapp_name": "[concat(variables('prefixes').FunctionApp, parameters('AppName'), '-', parameters('Environment'), '-', uniqueString(resourceGroup().id))]",
+    "serverfarm_name": "[concat(variables('prefixes').AppServicePlan, parameters('AppName'))]",
+    "WebJob_name": "[concat(variables('prefixes').WebApp, parameters('AppName'), '-', parameters('Environment'), '-', uniqueString(resourceGroup().id))]",
+    "vault_name": "[concat(variables('prefixes').KeyVault, parameters('AppName'), uniqueString(resourceGroup().id))]",
+    "namespace_name": "[concat(variables('prefixes').ServiceBus, parameters('AppName'), '-', parameters('Environment'))]",
+    "components_Insights_name": "[concat(variables('prefixes').ApplicationInsights, parameters('AppName'))]",
+    "storageAccount_name": "[concat(variables('prefixes').StorageAccount, toLower(parameters('AppName')), uniqueString(resourceGroup().id))]",
+    "NestedTemplateFolder": "nestedtemplates",
+    "SQLDeploymentTemplateFileName": "SQLServer.json",
+    "SQLDeploymentTemplateParametersFileName": "SQLServer.parameters.json",
+    "SQLDBConnStringSecretName": "ConnectionStrings--SQLDBConnString",
+    "StorageConnStringSecretName": "ConnectionStrings--StorageConnString",
+    "ServiceBusConnectionSecretName": "ConnectionStrings--ServiceBusConnection",
+    "AzureWebJobsStorageSecretName": "ConnectionStrings--AzureWebJobsStorage",
+    "KeyVaultTemplateFileName": "KeyVault.json",
+    "KeyVaultTemplateParametersFileName": "KeyVault.parameters.json"
+  },
+  "resources": [
+    {
+      "type": "microsoft.insights/components",
+      "apiVersion": "2018-05-01-preview",
+      "name": "[variables('components_Insights_name')]",
+      "location": "[variables('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "Flow_Type": "Redfield",
+        "Request_Source": "WebTools16.0",
+        "RetentionInDays": 90,
+        "publicNetworkAccessForIngestion": "Enabled",
+        "publicNetworkAccessForQuery": "Enabled"
+      },
+      "tags": {
+        "displayName": "App Insights"
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('serverfarm_name')]",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "F1",
+        "tier": "Free",
+        "size": "F1",
+        "family": "F",
+        "capacity": 0
+      },
+      "kind": "app",
+      "properties": {
+        "perSiteScaling": false,
+        "maximumElasticWorkerCount": 1,
+        "isSpot": false,
+        "reserved": false,
+        "isXenon": false,
+        "hyperV": false,
+        "targetWorkerCount": 0,
+        "targetWorkerSizeId": 0
+      },
+      "tags": {
+        "displayName": "App Service Plan"
+      }
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces",
+      "apiVersion": "2018-01-01-preview",
+      "name": "[variables('namespace_name')]",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Standard"
+      },
+      "properties": {
+        "zoneRedundant": false
+      },
+      "resources": [
+        {
+          "type": "Microsoft.ServiceBus/namespaces/AuthorizationRules",
+          "apiVersion": "2017-04-01",
+          "name": "[concat(variables('namespace_name'), '/RootManageSharedAccessKey')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+          ],
+          "properties": {
+            "rights": [
+              "Listen",
+              "Manage",
+              "Send"
+            ]
+          },
+          "tags": {
+            "displayName": "Service Bus Auth Rule: Root"
+          }
+        },
+        {
+          "type": "Microsoft.ServiceBus/namespaces/AuthorizationRules",
+          "apiVersion": "2017-04-01",
+          "name": "[concat(variables('namespace_name'), '/SendListenSASKey')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+          ],
+          "properties": {
+            "rights": [
+              "Listen",
+              "Send"
+            ]
+          },
+          "tags": {
+            "displayName": "Service Bus Auth Rule: Send/Listen"
+          }
+        },
+        {
+          "type": "Microsoft.ServiceBus/namespaces/queues",
+          "apiVersion": "2017-04-01",
+          "name": "[concat(variables('namespace_name'), '/generate')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+          ],
+          "properties": {
+            "lockDuration": "PT30S",
+            "maxSizeInMegabytes": 1024,
+            "requiresDuplicateDetection": true,
+            "requiresSession": false,
+            "defaultMessageTimeToLive": "P14D",
+            "deadLetteringOnMessageExpiration": false,
+            "enableBatchedOperations": true,
+            "duplicateDetectionHistoryTimeWindow": "PT1M",
+            "maxDeliveryCount": 1,
+            "status": "Active",
+            "autoDeleteOnIdle": "P10675199DT2H48M5.4775807S",
+            "enablePartitioning": false,
+            "enableExpress": false
+          },
+          "tags": {
+            "displayName": "Service Bus Queue: generate"
+          }
+        },
+        {
+          "type": "Microsoft.ServiceBus/namespaces/queues",
+          "apiVersion": "2017-04-01",
+          "name": "[concat(variables('namespace_name'), '/notify')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+          ],
+          "properties": {
+            "lockDuration": "PT30S",
+            "maxSizeInMegabytes": 1024,
+            "requiresDuplicateDetection": true,
+            "requiresSession": false,
+            "defaultMessageTimeToLive": "P14D",
+            "deadLetteringOnMessageExpiration": false,
+            "enableBatchedOperations": true,
+            "duplicateDetectionHistoryTimeWindow": "PT1M",
+            "maxDeliveryCount": 1,
+            "status": "Active",
+            "autoDeleteOnIdle": "P10675199DT2H48M5.4775807S",
+            "enablePartitioning": false,
+            "enableExpress": false
+          },
+          "tags": {
+            "displayName": "Service Bus Queue: notify"
+          }
+        },
+        {
+          "type": "Microsoft.ServiceBus/namespaces/queues",
+          "apiVersion": "2017-04-01",
+          "name": "[concat(variables('namespace_name'), '/verify')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+          ],
+          "properties": {
+            "lockDuration": "PT30S",
+            "maxSizeInMegabytes": 1024,
+            "requiresDuplicateDetection": true,
+            "requiresSession": false,
+            "defaultMessageTimeToLive": "P14D",
+            "deadLetteringOnMessageExpiration": false,
+            "enableBatchedOperations": true,
+            "duplicateDetectionHistoryTimeWindow": "PT1M",
+            "maxDeliveryCount": 1,
+            "status": "Active",
+            "autoDeleteOnIdle": "P10675199DT2H48M5.4775807S",
+            "enablePartitioning": false,
+            "enableExpress": false
+          },
+          "tags": {
+            "displayName": "Service Bus Queue: verify"
+          }
+        }
+      ],
+      "tags": {
+        "displayName": "Service Bus"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2020-08-01-preview",
+      "name": "[variables('storageAccount_name')]",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "Standard_LRS",
+        "tier": "Standard"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": true,
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "virtualNetworkRules": [],
+          "ipRules": [],
+          "defaultAction": "Allow"
+        },
+        "supportsHttpsTrafficOnly": true,
+        "encryption": {
+          "services": {
+            "file": {
+              "keyType": "Account",
+              "enabled": true
+            },
+            "blob": {
+              "keyType": "Account",
+              "enabled": true
+            }
+          },
+          "keySource": "Microsoft.Storage"
+        },
+        "accessTier": "Hot"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Storage/storageAccounts/blobServices",
+          "apiVersion": "2020-08-01-preview",
+          "name": "[concat(variables('storageAccount_name'), '/default')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name'))]"
+          ],
+          "sku": {
+            "name": "Standard_LRS",
+            "tier": "Standard"
+          },
+          "properties": {
+            "cors": {
+              "corsRules": []
+            },
+            "deleteRetentionPolicy": {
+              "enabled": false
+            }
+          },
+          "tags": {
+            "displayName": "Storage Account: Blob Services"
+          }
+        },
+        {
+          "type": "Microsoft.Storage/storageAccounts/fileServices",
+          "apiVersion": "2020-08-01-preview",
+          "name": "[concat(variables('storageAccount_name'), '/default')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name'))]"
+          ],
+          "sku": {
+            "name": "Standard_LRS",
+            "tier": "Standard"
+          },
+          "tags": {
+            "displayName": "Storage Account: File Services"
+          }
+        },
+        {
+          "type": "Microsoft.Storage/storageAccounts/queueServices",
+          "apiVersion": "2020-08-01-preview",
+          "name": "[concat(variables('storageAccount_name'), '/default')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name'))]"
+          ],
+
+          "tags": {
+            "displayName": "Storage Account: Queue Services"
+          }
+        },
+        {
+          "type": "Microsoft.Storage/storageAccounts/tableServices",
+          "apiVersion": "2020-08-01-preview",
+          "name": "[concat(variables('storageAccount_name'), '/default')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name'))]"
+          ],
+          "tags": {
+            "displayName": "Storage Account: Table Services"
+          }
+        }
+      ],
+      "tags": {
+        "displayName": "Storage Account"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2018-11-01",
+      "name": "[variables('functionapp_name')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('serverfarm_name'))]"
+      ],
+      "kind": "functionapp",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "enabled": true,
+        "hostNameSslStates": [
+          {
+            "name": "[concat(variables('functionapp_name'), '.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "[concat(variables('functionapp_name'), '.scm.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Repository"
+          }
+        ],
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('serverfarm_name'))]",
+        "reserved": false,
+        "isXenon": false,
+        "hyperV": false,
+        "scmSiteAlsoStopped": false,
+        "clientAffinityEnabled": false,
+        "clientCertEnabled": false,
+        "hostNamesDisabled": false,
+        "containerSize": 1536,
+        "dailyMemoryTimeQuota": 0,
+        "httpsOnly": true,
+        "redundancyMode": "None",
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "AzureWebJobsDashboard",
+              "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('AzureWebJobsStorageSecretName')), '2016-10-01').secretUriWithVersion, ')')]"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('AzureWebJobsStorageSecretName')), '2016-10-01').secretUriWithVersion, ')')]"
+            },
+            {
+              "name": "[replace(variables('ServiceBusConnectionSecretName'), '--', ':')]",
+              "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('ServiceBusConnectionSecretName')), '2016-10-01').secretUriWithVersion, ')')]"
+            },
+            {
+              "name": "[replace(variables('SQLDBConnStringSecretName'), '--', ':')]",
+              "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('SQLDBConnStringSecretName')), '2016-10-01').secretUriWithVersion, ')')]"
+            },
+            {
+              "name": "TwilioSID",
+              "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), 'TwilioSID'), '2016-10-01').secretUriWithVersion, ')')]"
+            },
+            {
+              "name": "TwilioToken",
+              "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), 'TwilioToken'), '2016-10-01').secretUriWithVersion, ')')]"
+            },
+            {
+              "name": "TwilioPhone",
+              "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), 'TwilioPhone'), '2016-10-01').secretUriWithVersion, ')')]"
+            },
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": "1"
+            },
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference(resourceId('microsoft.insights/components', variables('components_Insights_name')), '2020-02-02-preview').InstrumentationKey]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(resourceId('microsoft.insights/components', variables('components_Insights_name')), '2020-02-02-preview').ConnectionString]"
+            }
+          ],
+          "numberOfWorkers": 1,
+          "defaultDocuments": [
+            "Default.htm",
+            "Default.html",
+            "Default.asp",
+            "index.htm",
+            "index.html",
+            "iisstart.htm",
+            "default.aspx",
+            "index.php"
+          ],
+          "netFrameworkVersion": "v4.0",
+          "phpVersion": "5.6",
+          "requestTracingEnabled": false,
+          "remoteDebuggingEnabled": false,
+          "remoteDebuggingVersion": "VS2019",
+          "httpLoggingEnabled": false,
+          "logsDirectorySizeLimit": 35,
+          "detailedErrorLoggingEnabled": false,
+          "publishingUsername": "[concat('$', variables('functionapp_name'))]",
+          "scmType": "None",
+          "use32BitWorkerProcess": true,
+          "webSocketsEnabled": false,
+          "alwaysOn": false,
+          "managedPipelineMode": "Integrated",
+          "virtualApplications": [
+            {
+              "virtualPath": "/",
+              "physicalPath": "site\\wwwroot",
+              "preloadEnabled": false
+            }
+          ],
+          "loadBalancing": "LeastRequests",
+          "autoHealEnabled": false,
+          "cors": {
+            "allowedOrigins": [
+              "https://functions.azure.com",
+              "https://functions-staging.azure.com",
+              "https://functions-next.azure.com"
+            ],
+            "supportCredentials": false
+          },
+          "localMySqlEnabled": false,
+          "ipSecurityRestrictions": [
+            {
+              "ipAddress": "Any",
+              "action": "Allow",
+              "priority": 1,
+              "name": "Allow all",
+              "description": "Allow all access"
+            }
+          ],
+          "scmIpSecurityRestrictions": [
+            {
+              "ipAddress": "Any",
+              "action": "Allow",
+              "priority": 1,
+              "name": "Allow all",
+              "description": "Allow all access"
+            }
+          ],
+          "scmIpSecurityRestrictionsUseMain": false,
+          "http20Enabled": false,
+          "minTlsVersion": "1.2",
+          "ftpsState": "AllAllowed",
+          "reservedInstanceCount": 0
+        }
+      },
+      "tags": {
+        "displayName": "App Service: Function App"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Web/sites/hostNameBindings",
+          "apiVersion": "2018-11-01",
+          "name": "[concat(variables('functionapp_name'), '/', variables('functionapp_name'), '.azurewebsites.net')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('functionapp_name'))]"
+          ],
+          "properties": {
+            "siteName": "[variables('functionapp_name')]",
+            "hostNameType": "Verified"
+          },
+          "tags": {
+            "displayName": "Function App Host Name Bindings"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2018-11-01",
+      "name": "[variables('WebJob_name')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('serverfarm_name'))]"
+      ],
+      "tags": {
+        "[concat('hidden-related:', resourceId('Microsoft.Web/serverfarms', variables('serverfarm_name')))]": "empty",
+        "displayName": "App Service: WebJob"
+      },
+      "kind": "app",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "enabled": true,
+        "hostNameSslStates": [
+          {
+            "name": "[concat(variables('WebJob_name'), '.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "[concat(variables('WebJob_name'), '.scm.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Repository"
+          }
+        ],
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "VaultUri",
+              "value": "[concat('https://', variables('vault_name'), '.vault.azure.net/')]"
+            }
+          ],
+          "connectionStrings": [
+            {
+              "name": "AzureWebJobsDashboard",
+              "connectionString": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('AzureWebJobsStorageSecretName')), '2016-10-01').secretUriWithVersion, ')')]",
+              "type": "Custom"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "connectionString": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('AzureWebJobsStorageSecretName')), '2016-10-01').secretUriWithVersion, ')')]",
+              "type": "Custom"
+            },
+            {
+              "name": "[replace(variables('SQLDBConnStringSecretName'), '--', ':')]",
+              "connectionString": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('SQLDBConnStringSecretName')), '2016-10-01').secretUriWithVersion, ')')]",
+              "type": "Custom"
+            },
+            {
+              "name": "[replace(variables('ServiceBusConnectionSecretName'), '--', ':')]",
+              "connectionString": "[concat('@Microsoft.KeyVault(SecretUri=', reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vault_name'), variables('ServiceBusConnectionSecretName')), '2016-10-01').secretUriWithVersion, ')')]",
+              "type": "Custom"
+            },
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference(resourceId('microsoft.insights/components', variables('components_Insights_name')), '2020-02-02-preview').InstrumentationKey]"
+            }
+          ],
+          "numberOfWorkers": 1,
+          "defaultDocuments": [
+            "Default.htm",
+            "Default.html",
+            "Default.asp",
+            "index.htm",
+            "index.html",
+            "iisstart.htm",
+            "default.aspx",
+            "index.php",
+            "hostingstart.html"
+          ],
+          "netFrameworkVersion": "v4.0",
+          "phpVersion": "5.6",
+          "requestTracingEnabled": false,
+          "remoteDebuggingEnabled": false,
+          "httpLoggingEnabled": false,
+          "logsDirectorySizeLimit": 35,
+          "detailedErrorLoggingEnabled": false,
+          "publishingUsername": "$WebJobPublishingUser",
+          "scmType": "None",
+          "use32BitWorkerProcess": true,
+          "webSocketsEnabled": false,
+          "alwaysOn": false,
+          "managedPipelineMode": "Integrated",
+          "virtualApplications": [
+            {
+              "virtualPath": "/",
+              "physicalPath": "site\\wwwroot",
+              "preloadEnabled": false
+            }
+          ],
+          "loadBalancing": "LeastRequests",
+          "autoHealEnabled": false,
+          "localMySqlEnabled": false,
+          "ipSecurityRestrictions": [
+            {
+              "ipAddress": "Any",
+              "action": "Allow",
+              "priority": 1,
+              "name": "Allow all",
+              "description": "Allow all access"
+            }
+          ],
+          "scmIpSecurityRestrictions": [
+            {
+              "ipAddress": "Any",
+              "action": "Allow",
+              "priority": 1,
+              "name": "Allow all",
+              "description": "Allow all access"
+            }
+          ],
+          "scmIpSecurityRestrictionsUseMain": false,
+          "http20Enabled": false,
+          "minTlsVersion": "1.2",
+          "ftpsState": "AllAllowed",
+          "reservedInstanceCount": 0
+        },
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('serverfarm_name'))]",
+        "reserved": false,
+        "isXenon": false,
+        "hyperV": false,
+        "scmSiteAlsoStopped": false,
+        "clientAffinityEnabled": true,
+        "clientCertEnabled": false,
+        "hostNamesDisabled": false,
+        "containerSize": 0,
+        "dailyMemoryTimeQuota": 0,
+        "httpsOnly": true,
+        "redundancyMode": "None"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Web/sites/hostNameBindings",
+          "apiVersion": "2018-11-01",
+          "name": "[concat(variables('WebJob_name'), '/', variables('WebJob_name'), '.azurewebsites.net')]",
+          "location": "[variables('location')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('WebJob_name'))]"
+          ],
+          "properties": {
+            "siteName": "[variables('WebJob_name')]",
+            "hostNameType": "Verified"
+          },
+          "tags": {
+
+            "displayName": "WebJob Host Name Bindings"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SQLDeployment",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-08-01",
+      "dependsOn": [
+        "KeyVaultDeployment"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'), variables('NestedTemplateFolder'), '/', variables('SQLDeploymentTemplateFileName'), parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "AppName": {
+            "value": "[parameters('AppName')]"
+          },
+          "sqlserverAdminLogin": {
+            "value": "[parameters('SQLAdminUser')]"
+          },
+          "sqlserverAdminLoginPassword": {
+            "value": "[parameters('SQLAdminPassword')]"
+          },
+          "my_IP_address": {
+            "value": "[parameters('my_IP_address')]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          }
+        }
+      },
+      "tags": {
+        "displayName": "SQL Deployment"
+      }
+    },
+    {
+      "name": "KeyVaultDeployment",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-08-01",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('_artifactsLocation'), variables('NestedTemplateFolder'), '/', variables('KeyVaultTemplateFileName'), parameters('_artifactsLocationSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": { "value": "[variables('location')]" },
+          "vault_name": { "value": "[variables('vault_name')]" }
+        }
+      },
+      "tags": {
+        "displayName": "Key Vault Deployment"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/accessPolicies",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/replace')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('WebJob_Name'))]",
+        "[resourceId('Microsoft.Web/sites', variables('functionapp_name'))]"
+      ],
+      "properties": {
+        "accessPolicies": [
+          {
+            "tenantId": "[subscription().tenantId]",
+            "objectId": "[parameters('UserObjectId')]",
+            "permissions": {
+              "keys": [
+                "Get",
+                "List",
+                "Update",
+                "Create",
+                "Import",
+                "Delete",
+                "Recover",
+                "Backup",
+                "Restore"
+              ],
+              "secrets": [
+                "Get",
+                "List",
+                "Set",
+                "Delete",
+                "Recover",
+                "Backup",
+                "Restore"
+              ],
+              "certificates": [
+                "Get",
+                "List",
+                "Update",
+                "Create",
+                "Import",
+                "Delete",
+                "Recover",
+                "ManageContacts",
+                "ManageIssuers",
+                "GetIssuers",
+                "ListIssuers",
+                "SetIssuers",
+                "DeleteIssuers"
+              ]
+            }
+          },
+          {
+            "tenantId": "[subscription().tenantId]",
+            "objectId": "[reference(resourceId('Microsoft.Web/sites', variables('functionapp_name')), '2018-11-01', 'Full').identity.principalId]",
+            "permissions": {
+              "secrets": [
+                "Get",
+                "List"
+              ]
+            }
+          },
+          {
+            "tenantId": "[subscription().tenantId]",
+            "objectId": "[reference(resourceId('Microsoft.Web/sites', variables('WebJob_name')), '2018-11-01', 'Full').identity.principalId]",
+            "permissions": {
+              "secrets": [
+                "Get",
+                "List"
+              ]
+            }
+          }
+        ]
+      },
+      "tags": {
+        "displayName": "Key Vault Access Policy"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/', variables('ServiceBusConnectionSecretName'))]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "KeyVaultDeployment",
+        "[resourceId('Microsoft.ServiceBus/namespaces/AuthorizationRules', variables('namespace_name'), 'SendListenSASKey')]"
+      ],
+      "properties": {
+        "attributes": {
+          "enabled": true
+        },
+        "value": "[listKeys(resourceId('Microsoft.ServiceBus/namespaces/authorizationRules', variables('namespace_name'), 'SendListenSASKey'), '2017-04-01').primaryConnectionString]"
+      },
+      "tags": {
+        "displayName": "Key Vault Secret: ConnectionStrings--ServiceBusConnection"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/', variables('SQLDBConnStringSecretName'))]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "KeyVaultDeployment",
+        "SQLDeployment"
+      ],
+      "properties": {
+        "attributes": {
+          "enabled": true
+        },
+        "value": "[concat('data source=', reference('SQLDeployment').outputs.sqlFQDN.value, ';initial catalog=Notify;persist security info=True;user id=', parameters('SQLAdminUser'), ';password=', parameters('SQLAdminPassword'), ';MultipleActiveResultSets=True;')]"
+      },
+      "tags": {
+        "displayName": "Key Vault Secret: ConnectionStrings--SQLDBConnString"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/', variables('StorageConnStringSecretName'))]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "KeyVaultDeployment",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name'))]"
+      ],
+      "properties": {
+        "attributes": {
+          "enabled": true
+        },
+        "value": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name')), '2015-06-15').key1]"
+      },
+      "tags": {
+        "displayName": "Key Vault Secret: ConnectionStrings--StorageConnString"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/', variables('AzureWebJobsStorageSecretName'))]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "KeyVaultDeployment",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name'))]"
+      ],
+      "properties": {
+        "attributes": {
+          "enabled": true
+        },
+        "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccount_name'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccount_name')), '2015-06-15').key1,';EndpointSuffix=core.windows.net')]"
+      },
+      "tags": {
+        "displayName": "Key Vault Secret: ConnectionStrings--AzureWebJobsStorage"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/TwilioSID')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "KeyVaultDeployment"
+      ],
+      "properties": {
+        "attributes": {
+          "enabled": true
+        },
+        "value": "[parameters('TwilioSID')]"
+      },
+      "tags": {
+        "displayName": "Key Vault Secret: TwilioSID"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/TwilioToken')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "KeyVaultDeployment"
+      ],
+      "properties": {
+        "attributes": {
+          "enabled": true
+        },
+        "value": "[parameters('TwilioToken')]"
+      },
+      "tags": {
+        "displayName": "Key Vault Secret: TwilioToken"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(variables('vault_name'), '/TwilioPhone')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "KeyVaultDeployment"
+      ],
+      "properties": {
+        "attributes": {
+          "enabled": true
+        },
+        "value": "[parameters('TwilioPhone')]"
+      },
+      "tags": {
+        "displayName": "Key Vault Secret: TwilioPhone"
+      }
+    },
+    {
+      "properties": {
+        "lenses": {
+          "0": {
+            "order": 0,
+            "parts": {
+              "0": {
+                "position": {
+                  "x": 0,
+                  "y": 0,
+                  "colSpan": 6,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "options",
+                      "value": {
+                        "chart": {
+                          "metrics": [
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.Web/sites', variables('functionapp_name'))]"
+                              },
+                              "name": "FunctionExecutionCount",
+                              "aggregationType": 1,
+                              "metricVisualization": {
+                                "displayName": "Function Execution Count",
+                                "resourceDisplayName": "[variables('functionapp_name')]"
+                              }
+                            }
+                          ],
+                          "title": "Function Execution Count",
+                          "titleKind": 2,
+                          "visualization": {
+                            "chartType": 2
+                          },
+                          "openBladeOnClick": {
+                            "openBlade": true
+                          }
+                        }
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "sharedTimeRange",
+                      "isOptional": true
+                    }
+                  ],
+                  "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+                  "settings": {
+                    "content": {
+                      "options": {
+                        "chart": {
+                          "metrics": [
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.Web/sites', variables('functionapp_name'))]"
+                              },
+                              "name": "FunctionExecutionCount",
+                              "aggregationType": 1,
+                              "metricVisualization": {
+                                "displayName": "Function Execution Count",
+                                "resourceDisplayName": "[variables('functionapp_name')]"
+                              }
+                            }
+                          ],
+                          "title": "Function Execution Count",
+                          "titleKind": 2,
+                          "visualization": {
+                            "chartType": 2,
+                            "disablePinning": true
+                          },
+                          "openBladeOnClick": {
+                            "openBlade": true
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "filters": {
+                    "MsPortalFx_TimeRange": {
+                      "model": {
+                        "format": "local",
+                        "granularity": "auto",
+                        "relative": "60m"
+                      }
+                    }
+                  }
+                }
+              },
+              "1": {
+                "position": {
+                  "x": 6,
+                  "y": 0,
+                  "colSpan": 6,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "options",
+                      "value": {
+                        "chart": {
+                          "metrics": [
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "IncomingMessages",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Incoming Messages",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "OutgoingMessages",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Outgoing Messages",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            }
+                          ],
+                          "title": "Messages",
+                          "titleKind": 2,
+                          "visualization": {
+                            "chartType": 2,
+                            "legendVisualization": {
+                              "isVisible": true,
+                              "position": 2,
+                              "hideSubtitle": false
+                            },
+                            "axisVisualization": {
+                              "x": {
+                                "isVisible": true,
+                                "axisType": 2
+                              },
+                              "y": {
+                                "isVisible": true,
+                                "axisType": 1
+                              }
+                            }
+                          },
+                          "timespan": {
+                            "relative": {
+                              "duration": 3600000
+                            },
+                            "showUTCTime": false,
+                            "grain": 1
+                          }
+                        }
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "sharedTimeRange",
+                      "isOptional": true
+                    }
+                  ],
+                  "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+                  "settings": {
+                    "content": {
+                      "options": {
+                        "chart": {
+                          "metrics": [
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "IncomingMessages",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Incoming Messages",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "OutgoingMessages",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Outgoing Messages",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            }
+                          ],
+                          "title": "Messages",
+                          "titleKind": 2,
+                          "visualization": {
+                            "chartType": 2,
+                            "legendVisualization": {
+                              "isVisible": true,
+                              "position": 2,
+                              "hideSubtitle": false
+                            },
+                            "axisVisualization": {
+                              "x": {
+                                "isVisible": true,
+                                "axisType": 2
+                              },
+                              "y": {
+                                "isVisible": true,
+                                "axisType": 1
+                              }
+                            },
+                            "disablePinning": true
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "filters": {
+                    "MsPortalFx_TimeRange": {
+                      "model": {
+                        "format": "local",
+                        "granularity": "auto",
+                        "relative": "60m"
+                      }
+                    }
+                  }
+                }
+              },
+              "2": {
+                "position": {
+                  "x": 12,
+                  "y": 0,
+                  "colSpan": 6,
+                  "rowSpan": 4
+                },
+                "metadata": {
+                  "inputs": [
+                    {
+                      "name": "options",
+                      "value": {
+                        "chart": {
+                          "metrics": [
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "IncomingRequests",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Incoming Requests",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "SuccessfulRequests",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Successful Requests",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "ServerErrors",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Server Errors.",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "UserErrors",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "User Errors.",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "ThrottledRequests",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Throttled Requests.",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            }
+                          ],
+                          "title": "Requests",
+                          "titleKind": 2,
+                          "visualization": {
+                            "chartType": 2,
+                            "legendVisualization": {
+                              "isVisible": true,
+                              "position": 2,
+                              "hideSubtitle": false
+                            },
+                            "axisVisualization": {
+                              "x": {
+                                "isVisible": true,
+                                "axisType": 2
+                              },
+                              "y": {
+                                "isVisible": true,
+                                "axisType": 1
+                              }
+                            }
+                          },
+                          "timespan": {
+                            "relative": {
+                              "duration": 3600000
+                            },
+                            "showUTCTime": false,
+                            "grain": 1
+                          }
+                        }
+                      },
+                      "isOptional": true
+                    },
+                    {
+                      "name": "sharedTimeRange",
+                      "isOptional": true
+                    }
+                  ],
+                  "type": "Extension/HubsExtension/PartType/MonitorChartPart",
+                  "settings": {
+                    "content": {
+                      "options": {
+                        "chart": {
+                          "metrics": [
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "IncomingRequests",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Incoming Requests",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "SuccessfulRequests",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Successful Requests",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "ServerErrors",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Server Errors.",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "UserErrors",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "User Errors.",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            },
+                            {
+                              "resourceMetadata": {
+                                "id": "[resourceId('Microsoft.ServiceBus/namespaces', variables('namespace_name'))]"
+                              },
+                              "name": "ThrottledRequests",
+                              "aggregationType": 1,
+                              "namespace": "microsoft.servicebus/namespaces",
+                              "metricVisualization": {
+                                "displayName": "Throttled Requests.",
+                                "resourceDisplayName": "[variables('namespace_name')]"
+                              }
+                            }
+                          ],
+                          "title": "Requests",
+                          "titleKind": 2,
+                          "visualization": {
+                            "chartType": 2,
+                            "legendVisualization": {
+                              "isVisible": true,
+                              "position": 2,
+                              "hideSubtitle": false
+                            },
+                            "axisVisualization": {
+                              "x": {
+                                "isVisible": true,
+                                "axisType": 2
+                              },
+                              "y": {
+                                "isVisible": true,
+                                "axisType": 1
+                              }
+                            },
+                            "disablePinning": true
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "filters": {
+                    "MsPortalFx_TimeRange": {
+                      "model": {
+                        "format": "local",
+                        "granularity": "auto",
+                        "relative": "60m"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "metadata": {
+          "model": {
+            "timeRange": {
+              "value": {
+                "relative": {
+                  "duration": 24,
+                  "timeUnit": 1
+                }
+              },
+              "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange"
+            },
+            "filterLocale": {
+              "value": "en-us"
+            },
+            "filters": {
+              "value": {
+                "MsPortalFx_TimeRange": {
+                  "model": {
+                    "format": "utc",
+                    "granularity": "auto",
+                    "relative": "24h"
+                  },
+                  "displayCache": {
+                    "name": "UTC Time",
+                    "value": "Past 24 hours"
+                  },
+                  "filteredPartIds": [
+                    "StartboardPart-MonitorChartPart-de754e8a-80b5-485a-8a20-69bca685a7aa",
+                    "StartboardPart-MonitorChartPart-de754e8a-80b5-485a-8a20-69bca685a7ac",
+                    "StartboardPart-MonitorChartPart-de754e8a-80b5-485a-8a20-69bca685a7ae"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "name": "[concat(parameters('AppName'), 'Dashboard')]",
+      "type": "Microsoft.Portal/dashboards",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "hidden-title": "[concat(parameters('AppName'), ' Dashboard')]",
+        "displayName": "Dashboard"
+      },
+      "apiVersion": "2015-08-01-preview"
+    }
+  ],
+  "outputs": {
+    "WebJob_name": {
+      "value": "[variables('WebJob_name')]",
+      "type": "string"
+    },
+    "functionapp_name": {
+      "value": "[variables('functionapp_name')]",
+      "type": "string"
+    },
+    "VaultUri": {
+      "value": "[variables('vault_name')]",
+      "type": "string"
+    },
+    "APPINSIGHTS_INSTRUMENTATIONKEY": {
+      "value": "[reference(resourceId('microsoft.insights/components', variables('components_Insights_name')), '2020-02-02-preview').InstrumentationKey]",
+      "type": "string"
+    }
+  }
+}
